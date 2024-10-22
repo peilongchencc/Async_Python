@@ -1,7 +1,11 @@
 # asyncio
 
 本项目概述了用于 **"协程(coroutines)"** 和 **"任务(tasks)"** 的高级 asyncio APIs。<br>
+
+笔者的python版本: 3.12。<br>
+
 - [asyncio](#asyncio)
+  - [项目前言:](#项目前言)
   - [写法示例:](#写法示例)
     - [单 await 示例:](#单-await-示例)
     - [多个 await 示例:](#多个-await-示例)
@@ -35,6 +39,13 @@
     - [示例代码--手动管理任务的取消和清理:](#示例代码--手动管理任务的取消和清理)
     - [示例代码--自动管理任务的取消和清理(推荐):](#示例代码--自动管理任务的取消和清理推荐)
     - [使用 FIRST\_COMPLETED 时不取消任务的影响:](#使用-first_completed-时不取消任务的影响)
+    - [asyncio.wait--对生成器生成任务的支持:](#asynciowait--对生成器生成任务的支持)
+      - [示例代码](#示例代码)
+      - [解释](#解释)
+
+## 项目前言:
+
+`asyncio.TaskGroup`、`asyncio.gather` 和 `asyncio.wait` 都用于并行执行多个互不相关的异步任务。<br>
 
 
 ## 写法示例:
@@ -880,3 +891,57 @@ Done tasks:
 ```
 
 🚨终端在执行结束最快的任务后，返回了结果，但由于协程中还有其他任务(虽然这些任务的结果不返回)，所以函数会一直等到所有任务执行结束才退出。<br>
+
+### asyncio.wait--对生成器生成任务的支持:
+
+在Python 3.12版本文档中关于 `asyncio.wait` 增加了对生成器生成任务的支持。这意味着，`asyncio.wait` 现在可以处理由生成器函数生成的任务。这意味着你可以使用生成器生成任务，`asyncio.wait` 将等待这些任务完成。<br>
+
+以下是一个示例代码来帮助理解：<br>
+
+#### 示例代码
+
+```python
+import asyncio
+
+async def worker(n):
+    await asyncio.sleep(1)
+    print(f"Worker {n} 完成")
+    return n
+
+async def task_generator():
+    for i in range(5):
+        yield asyncio.create_task(worker(i))
+
+async def main():
+    tasks = [task async for task in task_generator()]
+    done, pending = await asyncio.wait(tasks)
+    for task in done:
+        print(f"结果: {task.result()}")
+
+asyncio.run(main())
+```
+
+#### 解释
+
+1. **worker(n)**：这是一个简单的协程，通过睡眠 1 秒来模拟一些工作，然后打印一条消息。
+
+2. **task_generator()**：这是一个生成器函数，生成由 `asyncio.create_task(worker(i))` 创建的任务。它创建并生成五个任务。
+
+3. **main()**：这是主协程，在这里收集由 `task_generator()` 生成的任务到一个列表中。然后使用 `asyncio.wait(tasks)` 来等待所有这些任务完成。一旦完成，它打印每个已完成任务的结果。
+
+在这个示例中，`asyncio.wait` 用于等待由生成器生成的所有任务完成。这是 Python 3.12 引入的新功能，允许在异步程序中更灵活地管理任务。<br>
+
+终端输出如下:<br>
+
+```log
+Worker 0 完成
+Worker 1 完成
+Worker 2 完成
+Worker 3 完成
+Worker 4 完成
+结果: 1
+结果: 3
+结果: 2
+结果: 4
+结果: 0
+```
